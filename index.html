@@ -8,9 +8,8 @@
   <style>
     html,body{height:100%;margin:0;background:#fff;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
     #chat{height:100vh}
-    #diag{position:fixed;left:8px;bottom:8px;background:#000;color:#fff;padding:8px 10px;border-radius:8px;font-size:12px;opacity:.8;z-index:99999}
+    #diag{position:fixed;left:8px;bottom:8px;background:#000;color:#fff;padding:8px 10px;border-radius:8px;font-size:12px;opacity:.85;z-index:99999}
     .hide{display:none}
-    /* por si el launcher quedara detrás de algo */
     .n8n-chat-launcher{z-index:99998 !important}
   </style>
 </head>
@@ -18,83 +17,70 @@
   <div id="chat"></div>
   <div id="diag">Cargando…</div>
 
-  <!-- UMD, sin módulos -->
-  <script src="https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.umd.js"></script>
-  <script>
-    (function(){
-      const diag = (m)=>{ console.log("[proxy]", m); const el=document.getElementById('diag'); el.textContent=m; };
-      const params = new URLSearchParams(location.search);
-      const prefill = String((params.get("q")||"")).slice(0,800).trim();
+  <script type="module">
+    const log = (m)=>{ console.log("[proxy]", m); const el=document.getElementById('diag'); if(el){ el.textContent=m; } };
 
-      // 1) Detectar createChat en los globals más comunes
-      const api = window.n8nChat || window['@n8n/chat'] || window.createChat || window.default;
-      const createChat = api?.createChat || api || window.createChat;
+    // 1) Importar ES module (esta ruta ya te funcionó)
+    import { createChat } from 'https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js';
 
-      if (!createChat) {
-        diag("No se encontró createChat() en el bundle UMD");
-        return;
-      }
-      diag("createChat encontrado; inicializando…");
+    // 2) Leer y normalizar ?q= (sin usar initialMessages)
+    const q = new URLSearchParams(location.search).get('q') || '';
+    const prefill = String(q).slice(0,800).trim();
 
-      // 2) Crear el chat (sin initialMessages para evitar el bug del parser)
-      const chat = createChat({
-        target: '#chat',
-        webhookUrl: 'https://analitekinr.app.n8n.cloud/webhook/03f593e9-b2f4-48a3-98a7-ceadb57aaf32/chat',
-        title: 'Soporte Analitek Industrial Research',
-        subtitle: '¿En qué te ayudo hoy?',
-        defaultPlaceholder: 'Escribe tu consulta…',
-        allowFileUploads: false,
-        loadPreviousSession: false, // evita estados previos
-        metadata: {
-          q: prefill,
-          sessionId: (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()),
-          source: 'proxy-github-pages',
-          startedAt: new Date().toISOString(),
+    // 3) Crear chat (sin initialMessages para evitar el bug del parser)
+    const chat = createChat({
+      target: '#chat',
+      webhookUrl: 'https://analitekinr.app.n8n.cloud/webhook/03f593e9-b2f4-48a3-98a7-ceadb57aaf32/chat',
+      title: 'Soporte Analitek Industrial Research',
+      subtitle: '¿En qué te ayudo hoy?',
+      defaultPlaceholder: 'Escribe tu consulta…',
+      allowFileUploads: false,
+      loadPreviousSession: false, // evita estados previos corruptos
+      metadata: {
+        q: prefill,
+        sessionId: (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()),
+        source: 'proxy-github-pages',
+        startedAt: new Date().toISOString(),
+      },
+    });
+
+    log("createChat OK; intentando abrir…");
+    // 4) Abrir automáticamente si el API lo permite, si no, hacer click al launcher
+    let opened = false;
+    if (chat && typeof chat.open === 'function') {
+      chat.open(); opened = true; log("chat.open() invocado");
+    } else {
+      const clickLauncher = ()=>{
+        const btn = document.querySelector('[data-testid="n8n-chat-launcher"], .n8n-chat-launcher, button[title*="chat"]');
+        if (btn){ btn.click(); opened=true; log("Launcher clickeado"); return; }
+        requestAnimationFrame(clickLauncher);
+      };
+      clickLauncher();
+    }
+
+    // 5) Si hay ?q=, simular tecleo + enviar cuando el input y el botón existan
+    if (prefill) {
+      const trySend = ()=>{
+        const input = document.querySelector('textarea, [data-testid="n8n-chat-input"]');
+        const send  = document.querySelector('[data-testid="n8n-chat-send"], .n8n-chat-send, button[aria-label*="Enviar"]');
+        if (input && send) {
+          if ('value' in input) input.value = prefill;
+          input.dispatchEvent(new Event('input', { bubbles:true }));
+          send.click();
+          log('Prefill enviado: "'+prefill+'"');
+          setTimeout(()=>document.getElementById('diag')?.classList.add('hide'), 1500);
+          return;
         }
-      });
-
-      // 3) Abrir automáticamente
-      let opened = false;
-      if (chat && typeof chat.open === 'function') {
-        chat.open();
-        opened = true;
-        diag("chat.open() invocado");
-      } else {
-        // Fallback: clickear el launcher
-        const tryOpen = ()=> {
-          const btn = document.querySelector('[data-testid="n8n-chat-launcher"], .n8n-chat-launcher, button[title*="chat"]');
-          if (btn) { btn.click(); opened=true; diag("Launcher clickeado"); return; }
-          requestAnimationFrame(tryOpen);
-        };
-        tryOpen();
-      }
-
-      // 4) Si hay ?q=, simular tecleo+enviar cuando el input exista
-      if (prefill) {
-        const trySend = ()=>{
-          const input = document.querySelector('textarea, [data-testid="n8n-chat-input"]');
-          const send  = document.querySelector('[data-testid="n8n-chat-send"], .n8n-chat-send, button[aria-label*="Enviar"]');
-          if (input && send) {
-            if ('value' in input) input.value = prefill;
-            input.dispatchEvent(new Event('input', {bubbles:true}));
-            send.click();
-            diag('Prefill enviado: "'+prefill+'"');
-            // ocultar diagnóstico después de 2s
-            setTimeout(()=>document.getElementById('diag').classList.add('hide'), 2000);
-            return;
-          }
-          requestAnimationFrame(trySend);
-        };
-        // esperar a que esté abierto (en la práctica el selector aparece rápido)
-        const waitOpened = ()=>{
-          if (opened) return trySend();
-          requestAnimationFrame(waitOpened);
-        };
-        waitOpened();
-      } else {
-        setTimeout(()=>document.getElementById('diag').classList.add('hide'), 1500);
-      }
-    })();
+        requestAnimationFrame(trySend);
+      };
+      const waitOpened = ()=>{
+        if (opened) return trySend();
+        requestAnimationFrame(waitOpened);
+      };
+      waitOpened();
+    } else {
+      setTimeout(()=>document.getElementById('diag')?.classList.add('hide'), 1200);
+    }
   </script>
 </body>
 </html>
