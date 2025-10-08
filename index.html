@@ -12,33 +12,36 @@
   <script type="module">
     import { createChat } from 'https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js';
 
-    // ⚠️ SIN títulos, SIN metadata, SIN initialMessages
+    // 1) Lee y normaliza el prefill
+    const q = new URLSearchParams(location.search).get('q') || '';
+    const prefill = String(q).slice(0, 800);
+
+    // 2) Construye initialMessages (si hay prefill)
+    const initialMessages = prefill ? [{ role: 'user', text: prefill }] : [];
+
+    // 3) Metadata (solo strings)
+    const metadata = {
+      q: prefill,
+      sessionId: (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()),
+      source: 'proxy-github-pages',
+      startedAt: new Date().toISOString(),
+    };
+
+    // 4) Crea el chat
     const chat = createChat({
       target: '#chat',
       webhookUrl: 'https://analitekinr.app.n8n.cloud/webhook/03f593e9-b2f4-48a3-98a7-ceadb57aaf32/chat',
-      title: String('Soporte Analitek Industrial Research'),
-      subtitle: String('¿En qué te ayudo hoy?'),
-      defaultPlaceholder: String('Escribe tu consulta...'),
-
+      title: 'Soporte Analitek Industrial Research',
+      subtitle: '¿En qué te ayudo hoy?',
+      defaultPlaceholder: 'Escribe tu consulta...',
       allowFileUploads: false,
-      // Intenta no cargar sesión previa por si hay un estado corrupto (si la versión lo soporta):
-      loadPreviousSession: false,
+      loadPreviousSession: false,   // evita estados previos corruptos
       metadata,
       initialMessages,
     });
-    const q = new URLSearchParams(location.search).get('q') || '';
-    const prefill = String(q).slice(0, 800);
-    const initialMessages = prefill ? [{ role: 'user', text: prefill }] : [];
 
-    const metadata = {
-    q: prefill,
-    sessionId: (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()),
-    source: 'proxy-github-pages',
-    startedAt: new Date().toISOString(),
-};
-
-
-    // No lo abrimos automáticamente; haz clic en el botón y escribe "hola"
+    // 5) (Opcional) abrir automáticamente
+    // chat?.open?.();
   </script>
 </body>
 </html>
