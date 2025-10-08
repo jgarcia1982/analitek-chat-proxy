@@ -8,162 +8,64 @@
   <style>
     html,body{height:100%;margin:0;background:#fff;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
     #chat{height:100vh;width:100vw}
-    #diag{position:fixed;left:8px;bottom:8px;background:#000;color:#fff;padding:8px 10px;border-radius:8px;font-size:12px;opacity:.85;z-index:99999}
-    .hide{display:none}
     .n8n-chat-launcher{z-index:99998 !important}
   </style>
 </head>
 <body>
   <div id="chat"></div>
-  <div id="diag">Cargando…</div>
 
   <script type="module">
-    const badge = (t)=>{ console.log("[proxy]", t); const d=document.getElementById('diag'); if(d) d.textContent=t; };
-    const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
-
     import { createChat } from 'https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js';
 
     const q = new URLSearchParams(location.search).get('q') || '';
     const prefill = String(q).slice(0,800).trim();
 
-    // 1) Crea el chat (sin initialMessages)
-    let chat;
-    try {
-      chat = createChat({
-        target: '#chat',
-        webhookUrl: 'https://analitekinr.app.n8n.cloud/webhook/03f593e9-b2f4-48a3-98a7-ceadb57aaf32/chat',
-        title: 'Soporte Analitek Industrial Research',
-        subtitle: '¿En qué te ayudo hoy?',
-        defaultPlaceholder: 'Escribe tu consulta…',
-        allowFileUploads: false,
-        loadPreviousSession: false,
-        metadata: {
-          q: prefill,
-          sessionId: (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()),
-          source: 'proxy-github-pages',
-          startedAt: new Date().toISOString(),
-        }
-      });
-      badge("createChat OK; abriendo…");
-    } catch (e) {
-      badge("Error creando chat: "+e.message);
-    }
+    const chat = createChat({
+      target: '#chat',
+      webhookUrl: 'https://analitekinr.app.n8n.cloud/webhook/03f593e9-b2f4-48a3-98a7-ceadb57aaf32/chat',
+      title: 'Soporte Analitek Industrial Research',
+      subtitle: '¿En qué te ayudo hoy?',
+      defaultPlaceholder: 'Escribe tu consulta…',
+      allowFileUploads: false,
+      loadPreviousSession: false,
+      metadata: {
+        q: prefill,
+        sessionId: (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()),
+        source: 'proxy-github-pages',
+        startedAt: new Date().toISOString(),
+      },
+    });
 
-    // 2) Intentos de apertura (open + click a launchers)
-    let opened = false;
+    // Intentar abrir (si la API lo soporta)
+    try { chat?.open?.(); } catch {}
 
-    async function tryOpen() {
-      // a) API
-      try {
-        if (chat && typeof chat.open === 'function') {
-          chat.open();
-          opened = true;
-          badge("chat.open() invocado");
-        }
-      } catch (e) {
-        badge("chat.open() error: "+e.message);
-      }
-
-      // b) Click al launcher (varios selectores)
-      if (!opened) {
-        badge("Buscando launcher…");
-        for (let i=0;i<50 && !opened;i++) {
-          const btn = document.querySelector(
-            '[data-testid="n8n-chat-launcher"], .n8n-chat-launcher, button[title*="chat" i], button[aria-label*="chat" i]'
-          );
-          if (btn) {
-            btn.click();
-            opened = true;
-            badge("Launcher clickeado");
-            break;
+    // Enviar ?q= como si el usuario tecleara (sin initialMessages)
+    if (prefill) {
+      const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
+      const trySend = async()=> {
+        for (let i=0;i<240;i++) {
+          const input = document.querySelector('textarea, input[type="text"], [role="textbox"], [contenteditable="true"]');
+          const send  = document.querySelector('[data-testid="n8n-chat-send"], .n8n-chat-send, button[aria-label*="Enviar" i], button[type="submit"]');
+          if (input) {
+            if ('value' in input) {
+              input.value = prefill;
+              input.dispatchEvent(new Event('input', { bubbles:true }));
+            } else {
+              input.textContent = prefill;
+              input.dispatchEvent(new InputEvent('input', { bubbles:true, data: prefill }));
+            }
+            if (send) { send.click(); return; }
+            // Fallback: Enter
+            input.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', code:'Enter', bubbles:true}));
+            input.dispatchEvent(new KeyboardEvent('keypress',{key:'Enter', code:'Enter', bubbles:true}));
+            input.dispatchEvent(new KeyboardEvent('keyup',   {key:'Enter', code:'Enter', bubbles:true}));
+            return;
           }
-          await sleep(100);
-        }
-      }
-
-      // c) Click al contenedor por si la lib renderiza on-focus
-      if (!opened) {
-        document.querySelector('#chat')?.click?.();
-        badge("Click sobre #chat para forzar render");
-      }
-    }
-
-    await tryOpen();
-
-    // 3) Auto-enviar ?q= cuando exista cualquier input utilizable
-    async function trySendPrefill() {
-      if (!prefill) { setTimeout(()=>document.getElementById('diag')?.classList.add('hide'), 1200); return; }
-
-      badge("Esperando input para enviar prefill…");
-
-      let sent = false;
-      const fillAndSend = ()=>{
-        // Cubre: textarea/input comunes, y editores con contenteditable/role="textbox"
-        const input =
-          document.querySelector('textarea, input[type="text"], [role="textbox"], [contenteditable="true"]');
-        if (!input) return false;
-
-        // Establecer valor/texto
-        try {
-          if ('value' in input) {
-            input.value = prefill;
-            input.dispatchEvent(new Event('input', {bubbles:true}));
-          } else {
-            // contenteditable
-            input.textContent = prefill;
-            const ev = new InputEvent('input', {bubbles:true, data: prefill});
-            input.dispatchEvent(ev);
-          }
-        } catch {}
-
-        // Intentar click en botón de enviar
-        const sendBtn =
-          document.querySelector('[data-testid="n8n-chat-send"], .n8n-chat-send, button[aria-label*="Enviar" i], button[type="submit"]');
-
-        if (sendBtn) {
-          sendBtn.click();
-          return true;
-        }
-
-        // Fallback: simular Enter
-        try {
-          const down = new KeyboardEvent('keydown', {key:'Enter', code:'Enter', bubbles:true});
-          const press = new KeyboardEvent('keypress', {key:'Enter', code:'Enter', bubbles:true});
-          const up = new KeyboardEvent('keyup', {key:'Enter', code:'Enter', bubbles:true});
-          input.dispatchEvent(down); input.dispatchEvent(press); input.dispatchEvent(up);
-          return true;
-        } catch {
-          return false;
+          await sleep(50);
         }
       };
-
-      // Reintentos rápidos (hasta ~12s)
-      for (let i=0;i<240 && !sent;i++) {
-        sent = fillAndSend();
-        if (!sent) await sleep(50);
-      }
-
-      // Observador por si el DOM aparece después
-      if (!sent) {
-        const obs = new MutationObserver(()=>{
-          if (!sent) sent = fillAndSend();
-          if (sent) obs.disconnect();
-        });
-        obs.observe(document.body, {childList:true, subtree:true});
-        // Corta a los 10s
-        setTimeout(()=>obs.disconnect(), 10000);
-      }
-
-      // Mensaje de estado
-      if (sent) {
-        badge('Prefill enviado: "'+prefill+'"');
-        setTimeout(()=>document.getElementById('diag')?.classList.add('hide'), 1500);
-      } else {
-        badge('No logré encontrar el input para enviar el prefill. Abre el chat manualmente.');
-      }
+      trySend();
     }
-
-    trySendPrefill();
   </script>
 </body>
 </html>
