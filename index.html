@@ -2,24 +2,26 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <title>Proxy n8n Chat (mínimo)</title>
+  <title>Soporte Analitek Industrial Research</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@n8n/chat/dist/style.css" />
-  <style>html,body{height:100%;margin:0}#chat{height:100vh}</style>
+  <style>
+    html,body{height:100%;margin:0;background:#fff}
+    #chat{height:100vh}
+    body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+  </style>
 </head>
 <body>
   <div id="chat"></div>
+
   <script type="module">
     import { createChat } from 'https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js';
 
-    // 1) Lee y normaliza el prefill
+    // 1) Lee y normaliza el prefill desde ?q=
     const q = new URLSearchParams(location.search).get('q') || '';
-    const prefill = String(q).slice(0, 800);
+    const prefill = String(q).slice(0, 800).trim();
 
-    // 2) Construye initialMessages (si hay prefill)
-    const initialMessages = prefill ? [{ role: 'user', text: prefill }] : [];
-
-    // 3) Metadata (solo strings)
+    // 2) Metadata opcional (solo strings)
     const metadata = {
       q: prefill,
       sessionId: (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()),
@@ -27,7 +29,7 @@
       startedAt: new Date().toISOString(),
     };
 
-    // 4) Crea el chat
+    // 3) Crea el chat SIN initialMessages
     const chat = createChat({
       target: '#chat',
       webhookUrl: 'https://analitekinr.app.n8n.cloud/webhook/03f593e9-b2f4-48a3-98a7-ceadb57aaf32/chat',
@@ -35,13 +37,33 @@
       subtitle: '¿En qué te ayudo hoy?',
       defaultPlaceholder: 'Escribe tu consulta...',
       allowFileUploads: false,
-      loadPreviousSession: false,   // evita estados previos corruptos
-      metadata,
-      initialMessages,
+      loadPreviousSession: false,
+      metadata
     });
 
-    // 5) (Opcional) abrir automáticamente
+    // 4) Abre automáticamente (opcional)
     // chat?.open?.();
+
+    // 5) Si hay ?q=, simula que el usuario lo escribió y lo envió
+    if (prefill) {
+      const trySend = () => {
+        // Botón/enviador e input del widget (selectores tolerantes)
+        const sendBtn = document.querySelector('[data-testid="n8n-chat-send"], .n8n-chat-send, button[aria-label*="Enviar"]');
+        const input   = document.querySelector('textarea, [data-testid="n8n-chat-input"]');
+
+        if (input && sendBtn) {
+          // Establece el valor y dispara el evento 'input' para que el widget lo detecte
+          if ('value' in input) input.value = prefill;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+
+          // Haz clic en "enviar"
+          sendBtn.click();
+          return; // listo
+        }
+        requestAnimationFrame(trySend);
+      };
+      trySend();
+    }
   </script>
 </body>
 </html>
