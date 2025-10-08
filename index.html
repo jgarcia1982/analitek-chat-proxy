@@ -18,15 +18,15 @@
   <div id="diag">Cargando…</div>
 
   <script type="module">
-    const log = (m)=>{ console.log("[proxy]", m); const el=document.getElementById('diag'); if(el){ el.textContent=m; } };
-    const wait = (ms)=>new Promise(r=>setTimeout(r,ms));
+    const badge = (t)=>{ console.log("[proxy]", t); const d=document.getElementById('diag'); if(d) d.textContent=t; };
+    const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
 
     import { createChat } from 'https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js';
 
     const q = new URLSearchParams(location.search).get('q') || '';
     const prefill = String(q).slice(0,800).trim();
 
-    // Crear chat (sin initialMessages). Intentamos forzar embebido si la versión lo soporta.
+    // 1) Crea el chat (sin initialMessages)
     let chat;
     try {
       chat = createChat({
@@ -37,9 +37,6 @@
         defaultPlaceholder: 'Escribe tu consulta…',
         allowFileUploads: false,
         loadPreviousSession: false,
-        // Estas props son compatibles en varias builds; si no las soporta, simplemente se ignoran
-        layout: { mode: 'embedded' },
-        launcher: { visible: false },
         metadata: {
           q: prefill,
           sessionId: (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()),
@@ -47,100 +44,126 @@
           startedAt: new Date().toISOString(),
         }
       });
-      log("createChat OK; abriendo…");
-    } catch(e) {
-      log("Error creando chat: "+ e.message);
+      badge("createChat OK; abriendo…");
+    } catch (e) {
+      badge("Error creando chat: "+e.message);
     }
 
-    // Abrir con varios intentos
+    // 2) Intentos de apertura (open + click a launchers)
     let opened = false;
 
-    async function tryOpenSequence() {
-      // 1) Intentar chat.open()
-      if (chat && typeof chat.open === 'function') {
-        try {
+    async function tryOpen() {
+      // a) API
+      try {
+        if (chat && typeof chat.open === 'function') {
           chat.open();
           opened = true;
-          log("chat.open() invocado");
-        } catch(e) {
-          log("chat.open() lanzó error: " + e.message);
+          badge("chat.open() invocado");
         }
+      } catch (e) {
+        badge("chat.open() error: "+e.message);
       }
 
-      // 2) Si no abrió, intentar click al launcher varias veces
+      // b) Click al launcher (varios selectores)
       if (!opened) {
-        log("Intentando click al launcher…");
-        for (let i=0;i<40 && !opened;i++) {
+        badge("Buscando launcher…");
+        for (let i=0;i<50 && !opened;i++) {
           const btn = document.querySelector(
-            '[data-testid="n8n-chat-launcher"], .n8n-chat-launcher, button[title*="chat"], button[aria-label*="chat"], button[aria-label*="Chat"]'
+            '[data-testid="n8n-chat-launcher"], .n8n-chat-launcher, button[title*="chat" i], button[aria-label*="chat" i]'
           );
           if (btn) {
             btn.click();
             opened = true;
-            log("Launcher clickeado");
+            badge("Launcher clickeado");
             break;
           }
-          await wait(100);
+          await sleep(100);
         }
       }
 
-      // 3) Si sigue sin abrir, forzamos un toque al contenedor (algunas builds reaccionan al foco)
+      // c) Click al contenedor por si la lib renderiza on-focus
       if (!opened) {
-        const host = document.querySelector('#chat');
-        host?.click?.();
-        log("Click sobre #chat para forzar render");
+        document.querySelector('#chat')?.click?.();
+        badge("Click sobre #chat para forzar render");
       }
     }
 
-    await tryOpenSequence();
+    await tryOpen();
 
-    // Enviar prefill cuando detectemos input & botón
-    function sendPrefillOnce() {
-      if (!prefill) return;
+    // 3) Auto-enviar ?q= cuando exista cualquier input utilizable
+    async function trySendPrefill() {
+      if (!prefill) { setTimeout(()=>document.getElementById('diag')?.classList.add('hide'), 1200); return; }
+
+      badge("Esperando input para enviar prefill…");
+
       let sent = false;
+      const fillAndSend = ()=>{
+        // Cubre: textarea/input comunes, y editores con contenteditable/role="textbox"
+        const input =
+          document.querySelector('textarea, input[type="text"], [role="textbox"], [contenteditable="true"]');
+        if (!input) return false;
 
-      const trySend = ()=>{
-        const input = document.querySelector('textarea, [data-testid="n8n-chat-input"]');
-        const send  = document.querySelector('[data-testid="n8n-chat-send"], .n8n-chat-send, button[aria-label*="Enviar"], button[type="submit"]');
+        // Establecer valor/texto
+        try {
+          if ('value' in input) {
+            input.value = prefill;
+            input.dispatchEvent(new Event('input', {bubbles:true}));
+          } else {
+            // contenteditable
+            input.textContent = prefill;
+            const ev = new InputEvent('input', {bubbles:true, data: prefill});
+            input.dispatchEvent(ev);
+          }
+        } catch {}
 
-        if (!sent && input && send) {
-          if ('value' in input) input.value = prefill;
-          input.dispatchEvent(new Event('input', { bubbles:true }));
-          send.click();
-          sent = true;
-          log('Prefill enviado: "'+prefill+'"');
-          setTimeout(()=>document.getElementById('diag')?.classList.add('hide'), 1500);
+        // Intentar click en botón de enviar
+        const sendBtn =
+          document.querySelector('[data-testid="n8n-chat-send"], .n8n-chat-send, button[aria-label*="Enviar" i], button[type="submit"]');
+
+        if (sendBtn) {
+          sendBtn.click();
+          return true;
+        }
+
+        // Fallback: simular Enter
+        try {
+          const down = new KeyboardEvent('keydown', {key:'Enter', code:'Enter', bubbles:true});
+          const press = new KeyboardEvent('keypress', {key:'Enter', code:'Enter', bubbles:true});
+          const up = new KeyboardEvent('keyup', {key:'Enter', code:'Enter', bubbles:true});
+          input.dispatchEvent(down); input.dispatchEvent(press); input.dispatchEvent(up);
+          return true;
+        } catch {
+          return false;
         }
       };
 
-      // 1) Reintentos cortos
-      let ticks = 0;
-      const rafLoop = ()=>{
-        if (sent) return;
-        trySend();
-        if (++ticks < 120) requestAnimationFrame(rafLoop);
-      };
-      rafLoop();
+      // Reintentos rápidos (hasta ~12s)
+      for (let i=0;i<240 && !sent;i++) {
+        sent = fillAndSend();
+        if (!sent) await sleep(50);
+      }
 
-      // 2) Observador de DOM por si el input aparece después
-      const obs = new MutationObserver(()=>{
-        if (!sent) trySend();
-        if (sent) obs.disconnect();
-      });
-      obs.observe(document.body, { childList:true, subtree:true });
+      // Observador por si el DOM aparece después
+      if (!sent) {
+        const obs = new MutationObserver(()=>{
+          if (!sent) sent = fillAndSend();
+          if (sent) obs.disconnect();
+        });
+        obs.observe(document.body, {childList:true, subtree:true});
+        // Corta a los 10s
+        setTimeout(()=>obs.disconnect(), 10000);
+      }
 
-      // 3) Failsafe: segundo grupo de intentos a intervalos
-      const id = setInterval(()=>{
-        if (sent) { clearInterval(id); return; }
-        trySend();
-      }, 250);
-      setTimeout(()=>clearInterval(id), 10000);
+      // Mensaje de estado
+      if (sent) {
+        badge('Prefill enviado: "'+prefill+'"');
+        setTimeout(()=>document.getElementById('diag')?.classList.add('hide'), 1500);
+      } else {
+        badge('No logré encontrar el input para enviar el prefill. Abre el chat manualmente.');
+      }
     }
 
-    sendPrefillOnce();
-
-    // Ocultar diagnóstico si no hay prefill
-    if (!prefill) setTimeout(()=>document.getElementById('diag')?.classList.add('hide'), 1200);
+    trySendPrefill();
   </script>
 </body>
 </html>
