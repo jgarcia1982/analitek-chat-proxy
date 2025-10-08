@@ -2,88 +2,26 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <title>Soporte Analitek Industrial Research</title>
+  <title>Proxy n8n Chat (mínimo)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link id="n8n-style" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@n8n/chat/dist/style.css" />
-  <style>
-    html,body { height:100%; margin:0; background:#fff; }
-    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
-    #chat { height:100vh; width:100vw; }
-    .error { color:#b00; padding:16px; }
-  </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@n8n/chat/dist/style.css" />
+  <style>html,body{height:100%;margin:0}#chat{height:100vh}</style>
 </head>
 <body>
   <div id="chat"></div>
-  <div id="err" class="error" style="display:none"></div>
-
   <script type="module">
-    (async () => {
-      try {
-        // Intento ES module (preferible)
-        const mod = await import('https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js');
-        const createChat = mod.createChat || mod.default?.createChat || mod.default || mod.createChat;
-        if (!createChat) throw new Error('ES module cargado pero no expone createChat()');
-        init(createChat);
-      } catch (e) {
-        console.warn('Fallo carga ES module, fallback UMD:', e);
-        loadUmdFallback();
-      }
-    })();
+    import { createChat } from 'https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js';
 
-    function loadUmdFallback() {
-      const s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.umd.js';
-      s.async = true;
-      s.onload = () => {
-        const api = window.n8nChat || window['@n8n/chat'] || window['n8n-chat'] || window.createChat || window.default;
-        const createChat = api?.createChat || api || window.createChat;
-        if (!createChat) {
-          document.getElementById('err').textContent = '⚠️ El UMD se cargó, pero no expone createChat(). Abre la consola para más detalles.';
-          document.getElementById('err').style.display = 'block';
-          console.error('API no encontrada en globals', Object.keys(window).filter(k => /n8n|chat|createChat/i.test(k)));
-          return;
-        }
-        init(createChat);
-      };
-      s.onerror = () => {
-        document.getElementById('err').textContent = '❌ No se pudo cargar @n8n/chat desde el CDN.';
-        document.getElementById('err').style.display = 'block';
-      };
-      document.head.appendChild(s);
-    }
+    // ⚠️ SIN títulos, SIN metadata, SIN initialMessages
+    const chat = createChat({
+      target: '#chat',
+      webhookUrl: 'https://analitekinr.app.n8n.cloud/webhook/03f593e9-b2f4-48a3-98a7-ceadb57aaf32/chat',
+      allowFileUploads: false,
+      // Intenta no cargar sesión previa por si hay un estado corrupto (si la versión lo soporta):
+      loadPreviousSession: false
+    });
 
-    function init(createChat) {
-      try {
-        const params = new URLSearchParams(location.search);
-        const prefill = (params.get('q') || '').toString().slice(0, 800);
-
-        const metadata = {
-          q: prefill,
-          sessionId: (crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random()),
-          source: 'proxy-github-pages',
-          startedAt: new Date().toISOString(),
-        };
-
-        const initialMessages = prefill ? [{ role: 'user', text: prefill }] : [];
-
-        const chat = createChat({
-          target: '#chat',
-          webhookUrl: 'https://analitekinr.app.n8n.cloud/webhook/03f593e9-b2f4-48a3-98a7-ceadb57aaf32/chat',
-          title: 'Soporte Analitek Industrial Research',
-          subtitle: '¿En qué te ayudo hoy?',
-          defaultPlaceholder: 'Escribe tu consulta...',
-          allowFileUploads: false,
-          metadata,
-          initialMessages,
-        });
-
-        if (chat && typeof chat.open === 'function') chat.open();
-      } catch (err) {
-        console.error('Error init chat:', err);
-        document.getElementById('err').textContent = '❌ Error inicializando el chat: ' + err.message;
-        document.getElementById('err').style.display = 'block';
-      }
-    }
+    // No lo abrimos automáticamente; haz clic en el botón y escribe "hola"
   </script>
 </body>
 </html>
