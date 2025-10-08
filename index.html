@@ -24,6 +24,10 @@
       // Intenta no cargar sesión previa por si hay un estado corrupto (si la versión lo soporta):
       loadPreviousSession: false
     });
+    const q = new URLSearchParams(location.search).get('q') || '';
+    const prefill = String(q).slice(0, 800);
+    const initialMessages = prefill ? [{ role: 'user', text: prefill }] : [];
+
 
     // No lo abrimos automáticamente; haz clic en el botón y escribe "hola"
   </script>
