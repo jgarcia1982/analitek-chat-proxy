@@ -28,6 +28,13 @@
     const prefill = String(q).slice(0, 800);
     const initialMessages = prefill ? [{ role: 'user', text: prefill }] : [];
 
+    const metadata = {
+    q: prefill,
+    sessionId: (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()),
+    source: 'proxy-github-pages',
+    startedAt: new Date().toISOString(),
+};
+
 
     // No lo abrimos automáticamente; haz clic en el botón y escribe "hola"
   </script>
