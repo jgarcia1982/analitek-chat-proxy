@@ -16,6 +16,10 @@
     const chat = createChat({
       target: '#chat',
       webhookUrl: 'https://analitekinr.app.n8n.cloud/webhook/03f593e9-b2f4-48a3-98a7-ceadb57aaf32/chat',
+      title: String('Soporte Analitek Industrial Research'),
+      subtitle: String('¿En qué te ayudo hoy?'),
+      defaultPlaceholder: String('Escribe tu consulta...'),
+
       allowFileUploads: false,
       // Intenta no cargar sesión previa por si hay un estado corrupto (si la versión lo soporta):
       loadPreviousSession: false
