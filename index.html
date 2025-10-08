@@ -22,7 +22,9 @@
 
       allowFileUploads: false,
       // Intenta no cargar sesión previa por si hay un estado corrupto (si la versión lo soporta):
-      loadPreviousSession: false
+      loadPreviousSession: false,
+      metadata,
+      initialMessages,
     });
     const q = new URLSearchParams(location.search).get('q') || '';
     const prefill = String(q).slice(0, 800);
