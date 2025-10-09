@@ -8,7 +8,34 @@
   <style>
     html,body{height:100%;margin:0;background:#fff;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
     #chat{height:100vh;width:100vw}
-    .n8n-chat-launcher{z-index:99998 !important}
+
+    /* Oculta el launcher flotante si aparece */
+    .n8n-chat-launcher { display:none !important; }
+
+    /* Fuerza la ventana del chat a mostrarse en varias builds */
+    /* Intentamos diferentes contenedores que usa @n8n/chat */
+    .n8n-chat-window,
+    .n8n-chat-container,
+    .n8n-chat-panel,
+    .n8n-chat-root,
+    [data-testid="n8n-chat-window"],
+    [data-testid="n8n-chat-root"] {
+      opacity: 1 !important;
+      transform: none !important;
+      pointer-events: auto !important;
+      display: block !important;
+      visibility: visible !important;
+    }
+
+    /* Si el widget renderiza embebido dentro del target, ocupamos todo */
+    #chat .n8n-chat-window,
+    #chat .n8n-chat-container,
+    #chat [data-testid="n8n-chat-window"] {
+      position: relative !important;
+      width: 100% !important;
+      height: 100% !important;
+      max-height: 100% !important;
+    }
   </style>
 </head>
 <body>
@@ -20,6 +47,7 @@
     const q = new URLSearchParams(location.search).get('q') || '';
     const prefill = String(q).slice(0,800).trim();
 
+    // 1) Crear chat (sin initialMessages para evitar el bug del parser)
     const chat = createChat({
       target: '#chat',
       webhookUrl: 'https://analitekinr.app.n8n.cloud/webhook/03f593e9-b2f4-48a3-98a7-ceadb57aaf32/chat',
@@ -28,22 +56,61 @@
       defaultPlaceholder: 'Escribe tu consulta…',
       allowFileUploads: false,
       loadPreviousSession: false,
+      // Si tu build soporta modo embebido, estas hints ayudan (si no, simplemente se ignoran)
+      layout: { mode: 'embedded' },
+      launcher: { visible: false },
       metadata: {
         q: prefill,
         sessionId: (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()),
         source: 'proxy-github-pages',
         startedAt: new Date().toISOString(),
-      },
+      }
     });
 
-    // Intentar abrir (si la API lo soporta)
+    // 2) Intentar abrir por API (algunas versiones lo soportan)
     try { chat?.open?.(); } catch {}
 
-    // Enviar ?q= como si el usuario tecleara (sin initialMessages)
+    // 3) Si no se abre, intentar pulsar el launcher (varios selectores)
+    const forceOpenByLauncher = () => {
+      const btn = document.querySelector(
+        '[data-testid="n8n-chat-launcher"], .n8n-chat-launcher, button[title*="chat" i], button[aria-label*="chat" i]'
+      );
+      if (btn) { btn.click(); return true; }
+      return false;
+    };
+
+    // 4) Fallback: forzar visibilidad del panel en cuanto exista
+    const forcePanelVisible = (root=document) => {
+      const panels = root.querySelectorAll(
+        '.n8n-chat-window, .n8n-chat-container, .n8n-chat-panel, .n8n-chat-root, [data-testid="n8n-chat-window"], [data-testid="n8n-chat-root"]'
+      );
+      panels.forEach(el => {
+        el.style.opacity = '1';
+        el.style.transform = 'none';
+        el.style.pointerEvents = 'auto';
+        el.style.display = 'block';
+        el.style.visibility = 'visible';
+        el.style.position = el.style.position || 'relative';
+        el.style.width = el.style.width || '100%';
+        el.style.height = el.style.height || '100%';
+        el.style.maxHeight = '100%';
+      });
+    };
+
+    // 5) Observa el DOM y aplica los “force open” apenas renderice algo
+    const obs = new MutationObserver(() => {
+      if (!forceOpenByLauncher()) {
+        forcePanelVisible();
+      }
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+
+    // 6) Enviar ?q= como si el usuario escribiera y presionara enviar
     if (prefill) {
       const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
       const trySend = async()=> {
         for (let i=0;i<240;i++) {
+          // cubrir textarea/input y editores con contenteditable
           const input = document.querySelector('textarea, input[type="text"], [role="textbox"], [contenteditable="true"]');
           const send  = document.querySelector('[data-testid="n8n-chat-send"], .n8n-chat-send, button[aria-label*="Enviar" i], button[type="submit"]');
           if (input) {
