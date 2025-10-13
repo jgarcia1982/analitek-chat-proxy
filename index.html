@@ -6,35 +6,40 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@n8n/chat/dist/style.css" />
   <style>
-    html,body{height:100%;margin:0;background:#fff;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
-    #chat{height:100vh;width:100vw}
-
-    /* Oculta el launcher flotante si aparece */
-    .n8n-chat-launcher { display:none !important; }
-
-    /* Fuerza la ventana del chat a mostrarse en varias builds */
-    /* Intentamos diferentes contenedores que usa @n8n/chat */
-    .n8n-chat-window,
-    .n8n-chat-container,
-    .n8n-chat-panel,
-    .n8n-chat-root,
-    [data-testid="n8n-chat-window"],
-    [data-testid="n8n-chat-root"] {
-      opacity: 1 !important;
-      transform: none !important;
-      pointer-events: auto !important;
-      display: block !important;
-      visibility: visible !important;
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    }
+    #chat {
+      width: 100%;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
     }
 
-    /* Si el widget renderiza embebido dentro del target, ocupamos todo */
-    #chat .n8n-chat-window,
-    #chat .n8n-chat-container,
-    #chat [data-testid="n8n-chat-window"] {
+    /* Ocultamos por completo el launcher y forzamos vista completa */
+    .n8n-chat-launcher { display: none !important; }
+
+    /* Aseguramos que el contenedor ocupe todo el espacio */
+    .n8n-chat-root,
+    .n8n-chat-window,
+    .n8n-chat-container,
+    [data-testid="n8n-chat-root"],
+    [data-testid="n8n-chat-window"] {
       position: relative !important;
       width: 100% !important;
       height: 100% !important;
       max-height: 100% !important;
+      opacity: 1 !important;
+      transform: none !important;
+      pointer-events: auto !important;
+      visibility: visible !important;
+      display: block !important;
+      background: #ffffff !important;
     }
   </style>
 </head>
@@ -42,94 +47,74 @@
   <div id="chat"></div>
 
   <script type="module">
-  import { createChat } from 'https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js';
+    import { createChat } from "https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js";
 
-  const q = new URLSearchParams(location.search).get('q') || '';
-  const prefill = String(q).slice(0,800).trim();
+    const q = new URLSearchParams(location.search).get("q") || "";
+    const prefill = String(q).slice(0, 800).trim();
 
-  // 1) Crear chat (sin initialMessages)
-  const chat = createChat({
-    target: '#chat',
-    webhookUrl: 'https://analitekinr.app.n8n.cloud/webhook/03f593e9-b2f4-48a3-98a7-ceadb57aaf32/chat',
-    title: 'Soporte Analitek Industrial Research',
-    subtitle: '¿En qué te ayudo hoy?',
-    defaultPlaceholder: 'Escribe tu consulta…',
-    allowFileUploads: false,
-    loadPreviousSession: false,
-    // hints (si la build los soporta, se respetan; si no, se ignoran)
-    layout: { mode: 'embedded' },
-    launcher: { visible: false },
-    metadata: {
-      q: prefill,
-      sessionId: (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()),
-      source: 'proxy-github-pages',
-      startedAt: new Date().toISOString(),
-    },
-  });
-
-  // 2) Intento “limpio” de abrir
-  try { chat?.open?.(); } catch {}
-
-  // 3) Si sigue cerrado, forzamos apertura visual cuando el widget renderice
-  const forceOpen = () => {
-    // a) si existe un contenedor con data-state=closed, cambiarlo a open
-    document.querySelectorAll('[data-state="closed"]').forEach(el => el.setAttribute('data-state','open'));
-
-    // b) forzar estilos visibles en contenedores comunes del widget
-    const nodes = document.querySelectorAll(
-      '.n8n-chat-window, .n8n-chat-container, .n8n-chat-root, [data-testid="n8n-chat-window"], [data-testid="n8n-chat-root"]'
-    );
-    nodes.forEach(el => {
-      el.style.opacity = '1';
-      el.style.transform = 'none';
-      el.style.pointerEvents = 'auto';
-      el.style.display = 'block';
-      el.style.visibility = 'visible';
-      el.style.position = 'relative';
-      el.style.width = '100%';
-      el.style.height = '100%';
-      el.style.maxHeight = '100%';
+    // 1️⃣ Crear el chat en modo embebido
+    const chat = createChat({
+      target: "#chat",
+      webhookUrl: "https://analitekinr.app.n8n.cloud/webhook/03f593e9-b2f4-48a3-98a7-ceadb57aaf32/chat",
+      title: "Soporte Analitek Industrial Research",
+      subtitle: "¿En qué te ayudo hoy?",
+      defaultPlaceholder: "Escribe tu consulta...",
+      allowFileUploads: false,
+      loadPreviousSession: false,
+      layout: { mode: "embedded" },
+      launcher: { visible: false },
+      metadata: {
+        q: prefill,
+        sessionId: (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()),
+        source: "proxy-fullpage",
+        startedAt: new Date().toISOString(),
+      },
     });
 
-    // c) si aparece un “launcher”, hacer click
-    const launcher = document.querySelector('[data-testid="n8n-chat-launcher"], .n8n-chat-launcher, button[aria-label*="chat" i]');
-    launcher?.click?.();
-  };
+    // 2️⃣ Asegurar que esté visible (para builds que renderizan tarde)
+    const ensureVisible = () => {
+      document.querySelectorAll(
+        ".n8n-chat-window, .n8n-chat-root, [data-testid='n8n-chat-window']"
+      ).forEach((el) => {
+        el.style.opacity = "1";
+        el.style.display = "block";
+        el.style.visibility = "visible";
+      });
+    };
+    new MutationObserver(ensureVisible).observe(document.body, { childList: true, subtree: true });
+    ensureVisible();
 
-  // 4) Observa el DOM y aplica forceOpen en cuanto aparezca algo del widget
-  const mo = new MutationObserver(() => forceOpen());
-  mo.observe(document.body, { childList: true, subtree: true });
-
-  // 5) Enviar el ?q= como si el usuario tecleara (sin initialMessages)
-  if (prefill) {
-    const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
-    (async function sendPrefill(){
-      for (let i=0;i<240;i++) {
-        // cubrir textarea/input y editores contenteditable/role textbox
-        const input = document.querySelector('textarea, input[type="text"], [role="textbox"], [contenteditable="true"]');
-        if (input) {
-          if ('value' in input) {
-            input.value = prefill;
-            input.dispatchEvent(new Event('input', { bubbles:true }));
-          } else {
-            input.textContent = prefill;
-            input.dispatchEvent(new InputEvent('input', { bubbles:true, data: prefill }));
+    // 3️⃣ Enviar automáticamente el texto de ?q= si existe
+    if (prefill) {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      (async () => {
+        for (let i = 0; i < 240; i++) {
+          const input = document.querySelector(
+            "textarea, input[type='text'], [role='textbox'], [contenteditable='true']"
+          );
+          if (input) {
+            if ("value" in input) {
+              input.value = prefill;
+              input.dispatchEvent(new Event("input", { bubbles: true }));
+            } else {
+              input.textContent = prefill;
+              input.dispatchEvent(new InputEvent("input", { bubbles: true, data: prefill }));
+            }
+            const sendBtn = document.querySelector(
+              "[data-testid='n8n-chat-send'], .n8n-chat-send, button[aria-label*='Enviar' i], button[type='submit']"
+            );
+            if (sendBtn) sendBtn.click();
+            else {
+              input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true }));
+              input.dispatchEvent(new KeyboardEvent("keypress",{ key: "Enter", code: "Enter", bubbles: true }));
+              input.dispatchEvent(new KeyboardEvent("keyup",   { key: "Enter", code: "Enter", bubbles: true }));
+            }
+            break;
           }
-          // botón enviar o Enter
-          const send = document.querySelector('[data-testid="n8n-chat-send"], .n8n-chat-send, button[aria-label*="Enviar" i], button[type="submit"]');
-          if (send) send.click();
-          else {
-            input.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', code:'Enter', bubbles:true}));
-            input.dispatchEvent(new KeyboardEvent('keypress',{key:'Enter', code:'Enter', bubbles:true}));
-            input.dispatchEvent(new KeyboardEvent('keyup',   {key:'Enter', code:'Enter', bubbles:true}));
-          }
-          break;
+          await sleep(50);
         }
-        await sleep(50);
-      }
-    })();
-  }
-</script>
-
+      })();
+    }
+  </script>
 </body>
 </html>
