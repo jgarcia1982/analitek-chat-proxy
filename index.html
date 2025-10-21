@@ -1,120 +1,64 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-8"/>
   <title>Soporte Analitek Industrial Research</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@n8n/chat/dist/style.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      background: #ffffff;
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-    }
-    #chat {
-      width: 100%;
-      height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-
-    /* Ocultamos por completo el launcher y forzamos vista completa */
-    .n8n-chat-launcher { display: none !important; }
-
-    /* Aseguramos que el contenedor ocupe todo el espacio */
-    .n8n-chat-root,
-    .n8n-chat-window,
-    .n8n-chat-container,
-    [data-testid="n8n-chat-root"],
-    [data-testid="n8n-chat-window"] {
-      position: relative !important;
-      width: 100% !important;
-      height: 100% !important;
-      max-height: 100% !important;
-      opacity: 1 !important;
-      transform: none !important;
-      pointer-events: auto !important;
-      visibility: visible !important;
-      display: block !important;
-      background: #ffffff !important;
+    html,body{height:100%;margin:0;background:#fff;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+    #app{height:100vh}
+    /* Oculta el launcher */
+    .woot-widget-bubble, #chatwoot-widget-bubble { display:none !important; }
+    /* Fuerza el panel visible y a pantalla completa */
+    .woot-widget-holder, .woot-widget--expanded, .woot-widget-container, #chatwoot_live_chat_widget {
+      width:100% !important; height:100% !important; max-height:100% !important;
+      opacity:1 !important; transform:none !important; visibility:visible !important; display:block !important;
+      position:fixed !important; inset:0 !important; z-index:9999 !important;
+      background:#fff !important;
     }
   </style>
 </head>
 <body>
-  <div id="chat"></div>
+  <div id="app"></div>
 
-  <script type="module">
-    import { createChat } from "https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js";
+  <script>
+    // 1) Lee ?q=
+    const q = new URLSearchParams(location.search).get('q') || '';
+    const initial = String(q).slice(0,800).trim();
 
-    const q = new URLSearchParams(location.search).get("q") || "";
-    const prefill = String(q).slice(0, 800).trim();
-
-    // 1️⃣ Crear el chat en modo embebido
-    const chat = createChat({
-      target: "#chat",
-      webhookUrl: "https://analitekinr.app.n8n.cloud/webhook/03f593e9-b2f4-48a3-98a7-ceadb57aaf32/chat",
-      title: "Soporte Analitek Industrial Research",
-      subtitle: "¿En qué te ayudo hoy?",
-      defaultPlaceholder: "Escribe tu consulta...",
-      allowFileUploads: false,
-      loadPreviousSession: false,
-      layout: { mode: "embedded" },
-      launcher: { visible: false },
-      metadata: {
-        q: prefill,
-        sessionId: (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()),
-        source: "proxy-fullpage",
-        startedAt: new Date().toISOString(),
-      },
-    });
-
-    // 2️⃣ Asegurar que esté visible (para builds que renderizan tarde)
-    const ensureVisible = () => {
-      document.querySelectorAll(
-        ".n8n-chat-window, .n8n-chat-root, [data-testid='n8n-chat-window']"
-      ).forEach((el) => {
-        el.style.opacity = "1";
-        el.style.display = "block";
-        el.style.visibility = "visible";
-      });
+    // 2) Config de Chatwoot SDK
+    window.chatwootSettings = {
+      hideMessageBubble: true,      // sin burbuja
+      position: 'right',
+      locale: 'es',
+      type: 'expanded_bubble',      // ayuda a forzar expansión
+      launcherTitle: 'Soporte',
     };
-    new MutationObserver(ensureVisible).observe(document.body, { childList: true, subtree: true });
-    ensureVisible();
 
-    // 3️⃣ Enviar automáticamente el texto de ?q= si existe
-    if (prefill) {
-      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-      (async () => {
-        for (let i = 0; i < 240; i++) {
-          const input = document.querySelector(
-            "textarea, input[type='text'], [role='textbox'], [contenteditable='true']"
-          );
-          if (input) {
-            if ("value" in input) {
-              input.value = prefill;
-              input.dispatchEvent(new Event("input", { bubbles: true }));
-            } else {
-              input.textContent = prefill;
-              input.dispatchEvent(new InputEvent("input", { bubbles: true, data: prefill }));
-            }
-            const sendBtn = document.querySelector(
-              "[data-testid='n8n-chat-send'], .n8n-chat-send, button[aria-label*='Enviar' i], button[type='submit']"
-            );
-            if (sendBtn) sendBtn.click();
-            else {
-              input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true }));
-              input.dispatchEvent(new KeyboardEvent("keypress",{ key: "Enter", code: "Enter", bubbles: true }));
-              input.dispatchEvent(new KeyboardEvent("keyup",   { key: "Enter", code: "Enter", bubbles: true }));
-            }
-            break;
-          }
-          await sleep(50);
-        }
-      })();
-    }
+    // 3) Carga SDK y abre automáticamente
+    (function(d,t){
+      var BASE_URL = 'https://app.chatwoot.com';              // p.ej. https://app.chatwoot.com
+      var g=d.createElement(t), s=d.getElementsByTagName(t)[0];
+      g.src = BASE_URL + '/packs/js/sdk.js'; s.parentNode.insertBefore(g,s);
+      g.onload = function(){
+        window.chatwootSDK.run({ websiteToken: 'mD7qxxcVwCVu4nCHRAnKw1hX', baseUrl: BASE_URL });
+
+        // Cuando el SDK esté listo, abre el panel y anota atributos útiles
+        window.$chatwoot.on('ready', function() {
+          try { window.$chatwoot.toggle('open'); } catch(e) { try{ window.$chatwoot.toggle(); }catch(_){} }
+
+          // Atributos personalizados: verás esto en el panel de chatwoot del contacto
+          window.$chatwoot.setCustomAttributes({
+            source: 'proxy-fullpage',
+            q: initial,
+            startedAt: new Date().toISOString(),
+          });
+
+          // (Opcional) muestra un saludo en el widget (sin enviar automáticamente)
+          // window.$chatwoot.addCustomAttributes({ greeting: `Recibido: ${initial}` });
+        });
+      };
+    })(document,'script');
   </script>
 </body>
 </html>
