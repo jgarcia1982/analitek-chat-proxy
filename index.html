@@ -7,9 +7,8 @@
   <style>
     html,body{height:100%;margin:0;background:#fff;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
     #app{height:100vh}
-    /* Oculta el launcher */
+    /* Oculta burbuja y fuerza panel a full page */
     .woot-widget-bubble, #chatwoot-widget-bubble { display:none !important; }
-    /* Fuerza panel a pantalla completa */
     .woot-widget-holder, .woot-widget--expanded, .woot-widget-container, #chatwoot_live_chat_widget {
       width:100% !important; height:100% !important; max-height:100% !important;
       opacity:1 !important; transform:none !important; visibility:visible !important; display:block !important;
@@ -21,55 +20,57 @@
   <div id="app"></div>
 
   <script>
-    // 1) Lee ?q=
+    // Lee ?q= (por si quieres guardar como atributo)
     const q = new URLSearchParams(location.search).get('q') || '';
     const initial = String(q).slice(0,800).trim();
 
-    // 2) Config del SDK
+    // Config SDK (la UI real se controla dentro del widget, la burbuja la ocultamos con CSS)
     window.chatwootSettings = {
-      hideMessageBubble: true,     // sin burbuja
+      hideMessageBubble: true,
       position: 'right',
       locale: 'es',
-      type: 'expanded_bubble',     // ayuda a que arranque expandido
-      launcherTitle: 'Soporte',
+      type: 'expanded_bubble'
     };
 
-    // 3) Cargar SDK y arrancar
     (function(d,t){
-      const BASE_URL = 'https://app.chatwoot.com';              // ej: https://app.chatwoot.com o tu dominio
-      const WEBSITE_TOKEN = 'mD7qxxcVwCVu4nCHRAnKw1hX';    // token de tu Website Inbox
-      const g=d.createElement(t), s=d.getElementsByTagName(t)[0];
-      g.src = BASE_URL + '/packs/js/sdk.js'; s.parentNode.insertBefore(g,s);
+      const BASE_URL = 'https://app.chatwoot.com';           // <-- reemplaza
+      const WEBSITE_TOKEN = 'mD7qxxcVwCVu4nCHRAnKw1hX'; // <-- reemplaza
 
-      // ✅ el listener va en chatwootSDK, NO en $chatwoot
-      g.onload = function(){
-        window.chatwootSDK.run({ websiteToken: WEBSITE_TOKEN, baseUrl: BASE_URL });
+      const s1 = d.createElement(t); s1.async = true;
+      s1.src = BASE_URL + '/packs/js/sdk.js';
+      d.head.appendChild(s1);
 
-        // Opción A: API del SDK
-        window.chatwootSDK.on && window.chatwootSDK.on('ready', function () {
-          try { window.$chatwoot.toggle('open'); } catch (_) { try { window.$chatwoot.toggle(); } catch(_) {} }
+      s1.onload = function () {
+        // 1) Arrancar el widget
+        window.chatwootSDK.run({ baseUrl: BASE_URL, websiteToken: WEBSITE_TOKEN });
 
-          // guardar info útil para el agente / operador
+        // 2) Handler cuando el widget está listo
+        function onReady() {
           try {
-            window.$chatwoot.setCustomAttributes({
-              source: 'proxy-fullpage',
-              q: initial,
-              startedAt: new Date().toISOString(),
-            });
-          } catch(_){}
-        });
+            // Abre el panel (toggle sin argumentos abre/colapsa; 'open' abre explícitamente en builds recientes)
+            if (typeof window.$chatwoot?.toggle === 'function') {
+              try { window.$chatwoot.toggle('open'); }
+              catch { window.$chatwoot.toggle(); }
+            }
+            // Guarda atributos (útiles en el panel del contacto)
+            if (typeof window.$chatwoot?.setCustomAttributes === 'function') {
+              window.$chatwoot.setCustomAttributes({
+                source: 'proxy-fullpage',
+                q: initial,
+                startedAt: new Date().toISOString(),
+              });
+            }
+          } catch (e) {
+            console.warn('[chatwoot] ready handler error:', e);
+          }
+        }
 
-        // Opción B: evento del DOM (fallback)
-        window.addEventListener('chatwoot:ready', function () {
-          try { window.$chatwoot.toggle('open'); } catch (_) { try { window.$chatwoot.toggle(); } catch(_) {} }
-          try {
-            window.$chatwoot.setCustomAttributes({
-              source: 'proxy-fullpage',
-              q: initial,
-              startedAt: new Date().toISOString(),
-            });
-          } catch(_){}
-        });
+        // 3) Suscribirse correctamente (NUNCA $chatwoot.on)
+        if (window.chatwootSDK?.on) {
+          window.chatwootSDK.on('ready', onReady);
+        }
+        // Fallback por si tu build sólo dispara evento DOM
+        window.addEventListener('chatwoot:ready', onReady);
       };
     })(document,'script');
   </script>
