@@ -133,14 +133,20 @@
       });
     };
     
-    function addMessage(type, text) {
-      const messagesDiv = document.getElementById('messages');
-      const msgDiv = document.createElement('div');
-      msgDiv.className = 'message ' + (type === 'user' ? 'user-message' : 'ai-message');
-      msgDiv.innerHTML = text.replace(/\n/g, '<br>');
-      messagesDiv.appendChild(msgDiv);
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    }
+   function addMessage(type, text) {
+  const messagesDiv = document.getElementById('messages');
+  const msgDiv = document.createElement('div');
+  msgDiv.className = 'message ' + (type === 'user' ? 'user-message' : 'ai-message');
+  
+  if (type === 'ai') {
+    msgDiv.innerHTML = marked.parse(text);
+  } else {
+    msgDiv.textContent = text;
+  }
+  
+  messagesDiv.appendChild(msgDiv);
+  messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
     
     function showTyping() {
       const messagesDiv = document.getElementById('messages');
